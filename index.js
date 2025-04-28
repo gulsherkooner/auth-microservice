@@ -13,5 +13,5 @@ app.use(connectToMongo);
 app.use('/', authRoutes);
 
 app.listen(port, () => {
-  console.log(`Auth Service running on port ${port}`);
+  console.log(`Auth Service running on port ${port}`); 
 });

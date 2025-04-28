@@ -1,18 +1,10 @@
 const cors = require('cors');
 
-const allowedOrigins = [
-  'http://localhost:3001',
-  'https://api-gateway-sooty-nine.vercel.app', // Replace with your Vercel URL
-];
+const corsOptions = {
+  origin: 'https://api-gateway-sooty-nine.vercel.app',
+  credentials: true, // Allow cookies (e.g., refreshToken)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
 
-module.exports = cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST'],
-  credentials: true,
-});
+module.exports = cors(corsOptions);

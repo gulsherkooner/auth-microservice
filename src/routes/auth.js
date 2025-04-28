@@ -1,0 +1,168 @@
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+const User = require('../models/user');
+const redis = require('../config/redis');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+} = require('../utils/jwt');
+
+const router = express.Router();
+
+// Register
+router.post('/register', async (req, res) => {
+  try {
+    const { email, username, password, name, bio, profile_img_url } = req.body;
+
+    if (!email || !username || !password) {
+      return res.status(400).json({ error: 'Email, username, and password are required' });
+    }
+
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email or username already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = uuidv4();
+
+    const newUser = new User({
+      user_id: userId,
+      email,
+      username,
+      password_hash: hashedPassword,
+      name: name || '',
+      bio: bio || '',
+      profile_img_url: profile_img_url || '',
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ user_id: userId, email });
+  } catch (error) {
+    console.error('Register error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    res.set('Set-Cookie', `refreshToken=${refreshToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}`);
+
+    res.status(200).json({
+      accessToken,
+      refreshToken,
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        bio: user.bio,
+        profile_img_url: user.profile_img_url,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh Token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    const decoded = verifyRefreshToken(refreshToken);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const user = await User.findOne({ user_id: decoded.user_id });
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    res.set('Set-Cookie', `refreshToken=${newRefreshToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}`);
+
+    res.status(200).json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get User
+router.get('/user', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyAccessToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const cacheKey = `user:${decoded.user_id}`;
+    const cachedUser = await redis.get(cacheKey);
+
+    if (cachedUser) {
+      return res.status(200).json({ user: JSON.parse(cachedUser) });
+    }
+
+    const user = await User.findOne({ user_id: decoded.user_id }).select(
+      'user_id username email name bio profile_img_url created_at updated_at -_id'
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error('Get user error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;

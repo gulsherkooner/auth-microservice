@@ -8,38 +8,38 @@
   ],
   "routes": [
     {
-      "src": "/auth/login",
+      "src": "/login",
       "dest": "index.js"
     },
     {
-      "src": "/auth/register",
+      "src": "/register",
       "dest": "index.js"
     },
     {
-      "src": "/auth/refresh",
+      "src": "/refresh",
       "dest": "index.js"
     },
     {
-      "src": "/auth/user",
+      "src": "/user",
       "dest": "index.js"
     },
 
 
 
     {
-      "src": "/auth/login/(.*)",
+      "src": "/login/(.*)",
       "dest": "index.js"
     },
     {
-      "src": "/auth/register/(.*)",
+      "src": "/register/(.*)",
       "dest": "index.js"
     },
     {
-      "src": "/auth/refresh/(.*)",
+      "src": "/refresh/(.*)",
       "dest": "index.js"
     },
     {
-      "src": "/auth/user/(.*)",
+      "src": "/user/(.*)",
       "dest": "index.js"
     },
     {

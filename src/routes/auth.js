@@ -6,8 +6,6 @@ const redis = require('../config/redis');
 const {
   generateAccessToken,
   generateRefreshToken,
-  verifyAccessToken,
-  verifyRefreshToken,
 } = require('../utils/jwt');
 
 const router = express.Router();
@@ -94,62 +92,22 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Refresh Token
-router.post('/refresh', async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(400).json({ error: 'Refresh token is required' });
-    }
-
-    const decoded = verifyRefreshToken(refreshToken);
-    if (!decoded) {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
-    }
-
-    const user = await User.findOne({ user_id: decoded.user_id });
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-
-    res.set('Set-Cookie', `refreshToken=${newRefreshToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}`);
-
-    res.status(200).json({
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    });
-  } catch (error) {
-    console.error('Refresh token error:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Get User
 router.get('/user', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.headers['x-user-id']; // Use header set by api-gateway
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID required' });
     }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyAccessToken(token);
-    if (!decoded) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    const cacheKey = `user:${decoded.user_id}`;
+    const cacheKey = `user:${userId}`;
     const cachedUser = await redis.get(cacheKey);
 
     if (cachedUser) {
       return res.status(200).json({ user: JSON.parse(cachedUser) });
     }
 
-    const user = await User.findOne({ user_id: decoded.user_id }).select(
+    const user = await User.findOne({ user_id: userId }).select(
       'user_id username email name bio profile_img_url created_at updated_at -_id'
     );
 

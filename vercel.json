@@ -23,6 +23,10 @@
       "src": "/user",
       "dest": "index.js"
     },
+    {
+      "src": "/user/:user_id",
+      "dest": "index.js"
+    },
 
 
 
@@ -40,6 +44,10 @@
     },
     {
       "src": "/user/(.*)",
+      "dest": "index.js"
+    },
+    {
+      "src": "/user/:user_id/(.*)",
       "dest": "index.js"
     },
     {

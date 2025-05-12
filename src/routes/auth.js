@@ -123,4 +123,31 @@ router.get('/user', async (req, res) => {
   }
 });
 
+router.get('/user/:user_id', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const cacheKey = `user:${user_id}`;
+    const cachedUser = await redis.get(cacheKey);
+
+    if (cachedUser) {
+      return res.status(200).json({ user: JSON.parse(cachedUser) });
+    }
+
+    const user = await User.findOne({ user_id }).select(
+      'user_id username email name bio profile_img_url created_at updated_at'
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error('Get user by ID error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

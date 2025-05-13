@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
   profile_img_url: { type: String },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
+  followers: {type:Number, default: 0},
+  following: {type:Number, default: 0},
+  banner_img_url: { type: String },
+  is_verified: { type: Boolean, default: false },
 });
 
 const User = mongoose.model('users', userSchema);

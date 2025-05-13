@@ -37,6 +37,10 @@ router.post('/register', async (req, res) => {
       profile_img_url: profile_img_url || '',
       created_at: new Date(),
       updated_at: new Date(),
+      followers: 0,
+      following: 0,
+      banner_img_url: '',
+      is_verified: false,
     });
 
     await newUser.save();
@@ -84,6 +88,10 @@ router.post('/login', async (req, res) => {
         profile_img_url: user.profile_img_url,
         created_at: user.created_at,
         updated_at: user.updated_at,
+        followers: user.followers,
+        following: user.following,
+        banner_img_url: user.banner_img_url,
+        is_verified: user.is_verified,
       },
     });
   } catch (error) {

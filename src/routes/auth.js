@@ -12,7 +12,7 @@ const router = express.Router();
 // Register
 router.post("/register", async (req, res) => {
   try {
-    const { email, username, password, name, bio, profile_img_url } = req.body;
+    const { email, username, password, name, bio, profile_img_url, DOB } = req.body;
 
     if (!email || !username || !password) {
       return res
@@ -37,6 +37,7 @@ router.post("/register", async (req, res) => {
       password_hash: hashedPassword,
       name: name || "",
       bio: bio || "",
+      DOB: DOB || "",
       profile_img_url: profile_img_url || "",
       created_at: new Date(),
       updated_at: new Date(),
@@ -48,7 +49,21 @@ router.post("/register", async (req, res) => {
 
     await newUser.save();
 
-    res.status(201).json({ user_id: userId, email });
+    const accessToken = generateAccessToken(newUser);
+    const refreshToken = generateRefreshToken(newUser);
+
+    res.set(
+      "Set-Cookie",
+      `refreshToken=${refreshToken}; HttpOnly; Path=/; Max-Age=${
+        7 * 24 * 60 * 60
+      }`
+    );
+
+    res.status(200).json({
+      accessToken,
+      refreshToken,
+      user: newUser,
+    });
   } catch (error) {
     console.error("Register error:", error.message);
     res.status(500).json({ error: "Internal server error" });

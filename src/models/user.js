@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   password_hash: { type: String, required: true },
   name: { type: String }, // Changed from display_name
   bio: { type: String },
+  DOB: {type: String},
   profile_img_url: { type: String },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },

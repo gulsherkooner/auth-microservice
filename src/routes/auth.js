@@ -141,40 +141,14 @@ router.get("/user", async (req, res) => {
   }
 });
 
-router.get("/user/:user_id", async (req, res) => {
-  try {
-    const { user_id } = req.params;
-
-    const cacheKey = `user:${user_id}`;
-    const cachedUser = await redis.get(cacheKey);
-
-    if (cachedUser) {
-      return res.status(200).json({ user: JSON.parse(cachedUser) });
-    }
-
-    const user = await User.findOne({ user_id }).select(
-      "user_id username email name bio profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
-    );
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    await redis.setex(cacheKey, 3600, JSON.stringify(user));
-    res.status(200).json({ user });
-  } catch (error) {
-    console.error("Get user by ID error:", error.message);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
+//public
 router.put("/user", async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
     if (!userId) {
       return res.status(401).json({ error: "User ID required" });
     }
-
+    
     const {
       email,
       username,
@@ -184,8 +158,10 @@ router.put("/user", async (req, res) => {
       banner_img_url,
       profile_img_data,
       banner_img_data,
+      followers,
+      following
     } = req.body;
-
+    
     // Validate input
     if (
       !email &&
@@ -195,18 +171,20 @@ router.put("/user", async (req, res) => {
       !profile_img_url &&
       !banner_img_url &&
       !profile_img_data &&
-      !banner_img_data
+      !banner_img_data &&
+      !followers && 
+      !following
     ) {
       return res
         .status(400)
         .json({ error: "At least one field must be provided for update" });
     }
-    console.log(banner_img_data);
 
     const user = await User.findOne({ user_id: userId });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    console.log(user)
 
     // Update text fields
     if (email !== undefined) user.email = email;
@@ -215,6 +193,8 @@ router.put("/user", async (req, res) => {
     if (bio !== undefined) user.bio = bio;
     if (profile_img_url !== undefined) user.profile_img_url = profile_img_url;
     if (banner_img_url !== undefined) user.banner_img_url = banner_img_url;
+    if (followers !== undefined) user.followers += followers;
+    if (following !== undefined) user.following += following;
     user.updated_at = new Date();
 
     // Handle Dropbox image uploads
@@ -226,7 +206,6 @@ router.put("/user", async (req, res) => {
         .json({ error: "Failed to get Dropbox access token" });
     }
 
-    console.log("Profile image blob (first 100 chars):", profile_img_data?.blob?.slice(0, 100));
     if (profile_img_data && profile_img_data.blob && profile_img_data.name) {
       const validImageTypes = ["image/jpeg", "image/png", "image/gif"];
       if (!validImageTypes.includes(profile_img_data.type)) {
@@ -290,6 +269,33 @@ router.put("/user", async (req, res) => {
 
     res.status(200).json({ user: updatedUser });
   } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/user/:user_id", async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const cacheKey = `user:${user_id}`;
+    const cachedUser = await redis.get(cacheKey);
+
+    if (cachedUser) {
+      return res.status(200).json({ user: JSON.parse(cachedUser) });
+    }
+
+    const user = await User.findOne({ user_id }).select(
+      "user_id username email name bio profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error("Get user by ID error:", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });

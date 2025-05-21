@@ -55,7 +55,7 @@
       "dest": "index.js",
       "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       "headers": {
-        "Access-Control-Allow-Origin": "https://api-gateway-eta-navy.vercel.app",
+        "Access-Control-Allow-Origin": "https://api-gateway-eta-navy.vercel.app, https://subscribe-microservice.vercel.app",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Authorization",
         "Access-Control-Allow-Credentials": "true",

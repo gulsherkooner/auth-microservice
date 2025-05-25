@@ -126,7 +126,7 @@ router.get("/user", async (req, res) => {
     }
 
     const user = await User.findOne({ user_id: userId }).select(
-      "user_id username email name bio profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
+      "user_id username email name bio DOB profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
     );
 
     if (!user) {

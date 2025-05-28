@@ -331,4 +331,39 @@ router.get("/user/:user_id", async (req, res) => {
   }
 });
 
+router.post("/change-password", async (req, res) => {
+  console.log("Reciveed");
+  try {
+    const userId = req.headers["x-user-id"];
+    const { currentPassword, newPassword } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "User ID required" });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Both current and new password are required" });
+    }
+
+    const user = await User.findOne({ user_id: userId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect current password" });
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.password_hash = hashedNewPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Change password error:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

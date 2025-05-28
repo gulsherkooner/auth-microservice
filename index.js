@@ -1,10 +1,10 @@
 const express = require('express');
 const dotenv = require('dotenv');
+dotenv.config();
 const connectToMongo = require('./src/middleware/connectMongo');
 const authRoutes = require('./src/routes/auth');
 const cors = require('./src/config/cors');
 
-dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3002;

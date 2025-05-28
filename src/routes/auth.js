@@ -20,7 +20,7 @@ router.post("/register", async (req, res) => {
         .json({ error: "Email, username, and password are required" });
     }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res
         .status(400)
@@ -30,14 +30,14 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
 
-    const newUser = new User({
+    const newUser = await User.create({
       user_id: userId,
       email,
       username,
       password_hash: hashedPassword,
       name: name || "",
       bio: bio || "",
-      DOB: DOB || "",
+      dob: DOB || "",
       profile_img_url: profile_img_url || "",
       created_at: new Date(),
       updated_at: new Date(),
@@ -46,8 +46,6 @@ router.post("/register", async (req, res) => {
       banner_img_url: "",
       is_verified: false,
     });
-
-    await newUser.save();
 
     const accessToken = generateAccessToken(newUser);
     const refreshToken = generateRefreshToken(newUser);
@@ -79,7 +77,7 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
@@ -102,7 +100,7 @@ router.post("/login", async (req, res) => {
     res.status(200).json({
       accessToken,
       refreshToken,
-      user: user,
+      user,
     });
   } catch (error) {
     console.error("Login error:", error.message);
@@ -113,7 +111,7 @@ router.post("/login", async (req, res) => {
 // Get User
 router.get("/user", async (req, res) => {
   try {
-    const userId = req.headers["x-user-id"]; // Use header set by api-gateway
+    const userId = req.headers["x-user-id"];
     if (!userId) {
       return res.status(401).json({ error: "User ID required" });
     }
@@ -125,14 +123,28 @@ router.get("/user", async (req, res) => {
       return res.status(200).json({ user: JSON.parse(cachedUser) });
     }
 
-    const user = await User.findOne({ user_id: userId }).select(
-      "user_id username email name bio profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
-    );
+    const user = await User.findOne({
+      where: { user_id: userId },
+      attributes: [
+        "user_id",
+        "username",
+        "email",
+        "name",
+        "bio",
+        "profile_img_url",
+        "created_at",
+        "updated_at",
+        "followers",
+        "following",
+        "banner_img_url",
+        "is_verified",
+      ],
+    });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    
+
     await redis.setex(cacheKey, 3600, JSON.stringify(user));
     res.status(200).json({ user });
   } catch (error) {
@@ -141,14 +153,14 @@ router.get("/user", async (req, res) => {
   }
 });
 
-//public
+// Update User
 router.put("/user", async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
     if (!userId) {
       return res.status(401).json({ error: "User ID required" });
     }
-    
+
     const {
       email,
       username,
@@ -159,9 +171,9 @@ router.put("/user", async (req, res) => {
       profile_img_data,
       banner_img_data,
       followers,
-      following
+      following,
     } = req.body;
-    
+
     // Validate input
     if (
       !email &&
@@ -172,47 +184,47 @@ router.put("/user", async (req, res) => {
       !banner_img_url &&
       !profile_img_data &&
       !banner_img_data &&
-      !followers && 
-      !following
+      followers === undefined &&
+      following === undefined
     ) {
       return res
         .status(400)
         .json({ error: "At least one field must be provided for update" });
     }
 
-    const user = await User.findOne({ user_id: userId });
+    const user = await User.findOne({ where: { user_id: userId } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    console.log(user)
 
-    // Update text fields
-    if (email !== undefined) user.email = email;
-    if (username !== undefined) user.username = username;
-    if (name !== undefined) user.name = name;
-    if (bio !== undefined) user.bio = bio;
-    if (profile_img_url !== undefined) user.profile_img_url = profile_img_url;
-    if (banner_img_url !== undefined) user.banner_img_url = banner_img_url;
-    if (followers !== undefined) user.followers += followers;
-    if (following !== undefined) user.following += following;
-    user.updated_at = new Date();
+    // Prepare update data
+    const updateData = {};
+    if (email !== undefined) updateData.email = email;
+    if (username !== undefined) updateData.username = username;
+    if (name !== undefined) updateData.name = name;
+    if (bio !== undefined) updateData.bio = bio;
+    if (profile_img_url !== undefined) updateData.profile_img_url = profile_img_url;
+    if (banner_img_url !== undefined) updateData.banner_img_url = banner_img_url;
+    if (followers !== undefined) updateData.followers = user.followers + followers;
+    if (following !== undefined) updateData.following = user.following + following;
+    updateData.updated_at = new Date();
 
     // Handle Dropbox image uploads
     const dbxAccessToken = await getDbxToken();
     if (!dbxAccessToken) {
-      logger.error("Failed to get Dropbox access token");
+      console.error("Failed to get Dropbox access token");
       return res
         .status(500)
         .json({ error: "Failed to get Dropbox access token" });
     }
 
     if (profile_img_data && profile_img_data.blob && profile_img_data.name) {
-      const validImageTypes = ["image/jpeg", "image/png", "image/gif"];
+      const validImageTypes = ["image/jpeg", "image/png", "image/gif", "image/ico"];
       if (!validImageTypes.includes(profile_img_data.type)) {
         return res.status(400).json({ error: "Invalid profile image type" });
       }
       const mediaUrl = await uploadToDropbox(
-        Buffer.from(profile_img_data.blob, "base64"), // Assuming blob is base64-encoded
+        Buffer.from(profile_img_data.blob, "base64"),
         profile_img_data.name,
         dbxAccessToken,
         res
@@ -220,9 +232,9 @@ router.put("/user", async (req, res) => {
       if (!mediaUrl) {
         return res
           .status(500)
-          .json({ error: `Failed to upload profile image to Dropbox` });
+          .json({ error: "Failed to upload profile image to Dropbox" });
       }
-      user.profile_img_url = mediaUrl;
+      updateData.profile_img_url = mediaUrl;
     }
 
     if (banner_img_data && banner_img_data.blob && banner_img_data.name) {
@@ -230,9 +242,8 @@ router.put("/user", async (req, res) => {
       if (!validImageTypes.includes(banner_img_data.type)) {
         return res.status(400).json({ error: "Invalid banner image type" });
       }
-
       const mediaUrl = await uploadToDropbox(
-        Buffer.from(banner_img_data.blob, "base64"), // Assuming blob is base64-encoded
+        Buffer.from(banner_img_data.blob, "base64"),
         banner_img_data.name,
         dbxAccessToken,
         res
@@ -240,39 +251,45 @@ router.put("/user", async (req, res) => {
       if (!mediaUrl) {
         return res
           .status(500)
-          .json({ error: `Failed to upload banner image to Dropbox` });
+          .json({ error: "Failed to upload banner image to Dropbox" });
       }
-      user.banner_img_url = mediaUrl;
+      updateData.banner_img_url = mediaUrl;
     }
 
-    await user.save();
+    // Update user
+    await user.update(updateData);
 
     // Clear Redis cache
     const cacheKey = `user:${userId}`;
     await redis.del(cacheKey);
 
     // Prepare response
-    const updatedUser = {
-      user_id: user.user_id,
-      email: user.email,
-      username: user.username,
-      name: user.name,
-      bio: user.bio,
-      profile_img_url: user.profile_img_url,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      followers: user.followers,
-      following: user.following,
-      banner_img_url: user.banner_img_url,
-      is_verified: user.is_verified,
-    };
+    const updatedUser = await User.findOne({
+      where: { user_id: userId },
+      attributes: [
+        "user_id",
+        "email",
+        "username",
+        "name",
+        "bio",
+        "profile_img_url",
+        "created_at",
+        "updated_at",
+        "followers",
+        "following",
+        "banner_img_url",
+        "is_verified",
+      ],
+    });
 
     res.status(200).json({ user: updatedUser });
   } catch (error) {
+    console.error("Update user error:", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
+// Get User by ID
 router.get("/user/:user_id", async (req, res) => {
   try {
     const { user_id } = req.params;
@@ -284,9 +301,23 @@ router.get("/user/:user_id", async (req, res) => {
       return res.status(200).json({ user: JSON.parse(cachedUser) });
     }
 
-    const user = await User.findOne({ user_id }).select(
-      "user_id username email name bio profile_img_url created_at updated_at followers following banner_img_url is_verified -_id"
-    );
+    const user = await User.findOne({
+      where: { user_id },
+      attributes: [
+        "user_id",
+        "username",
+        "email",
+        "name",
+        "bio",
+        "profile_img_url",
+        "created_at",
+        "updated_at",
+        "followers",
+        "following",
+        "banner_img_url",
+        "is_verified",
+      ],
+    });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });

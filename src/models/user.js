@@ -1,22 +1,72 @@
-const mongoose = require('mongoose');
+// Example using Sequelize ORM for a User model in JavaScript
 
-const userSchema = new mongoose.Schema({
-  user_id: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  username: { type: String, required: true, unique: true },
-  password_hash: { type: String, required: true },
-  name: { type: String }, // Changed from display_name
-  bio: { type: String },
-  DOB: {type: String},
-  profile_img_url: { type: String },
-  created_at: { type: Date, default: Date.now },
-  updated_at: { type: Date, default: Date.now },
-  followers: {type:Number, default: 0},
-  following: {type:Number, default: 0},
-  banner_img_url: { type: String },
-  is_verified: { type: Boolean, default: false },
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
+
+const User = sequelize.define('User', {
+  user_id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  email: {
+    type: DataTypes.STRING(255),
+    unique: true,
+    allowNull: false,
+  },
+  username: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false,
+  },
+  password_hash: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+  },
+  name: {
+    type: DataTypes.STRING(100),
+  },
+  bio: {
+    type: DataTypes.TEXT,
+  },
+  dob: {
+    type: DataTypes.STRING(50),
+  },
+  profile_img_url: {
+    type: DataTypes.TEXT,
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  followers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    validate: {
+      min: 0,
+    },
+  },
+  following: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    validate: {
+      min: 0,
+    },
+  },
+  banner_img_url: {
+    type: DataTypes.TEXT,
+  },
+  is_verified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+}, {
+  tableName: 'users',
+  timestamps: false,
 });
-
-const User = mongoose.model('users', userSchema);
 
 module.exports = User;

@@ -1,11 +1,13 @@
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
+const { Sequelize } = require('sequelize');
 
-dotenv.config();
+   const sequelize = new Sequelize({
+     dialect: 'postgres',
+     host: process.env.POSTGRES_HOST || 'localhost',
+     port: process.env.POSTGRES_PORT || 5432,
+     database: process.env.POSTGRES_DB || 'my-app',
+     username: process.env.POSTGRES_USER || 'postgres',
+     password: process.env.POSTGRES_PASSWORD || 'yourpassword',
+     logging: process.env.NODE_ENV === 'development' ? console.log : false,
+   });
 
-const clientPromise = mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-module.exports = { clientPromise };
+   module.exports = sequelize;

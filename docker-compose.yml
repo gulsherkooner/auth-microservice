@@ -1,0 +1,18 @@
+services:
+  auth-service:
+    image: auth-service:${TAG:-latest}
+    build:
+      context: /root/cent-stage/auth-service
+      dockerfile: Dockerfile
+      cache_from:
+        - auth-service:cache
+    env_file:
+      - /root/cent-stage/auth-service/.env
+    ports:
+      - "3002:3002"
+    networks:
+      - cent-stage-network
+    restart: unless-stopped
+networks:
+  cent-stage-network:
+    external: true

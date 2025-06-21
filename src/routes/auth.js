@@ -10,7 +10,7 @@ const uploadToDropbox = require("../config/dropbox");
 const router = express.Router();
 
 // Register
-router.post("/register", async (req, res) => {
+router.post("/register", async (req, res) => { 
   try {
     const { email, username, password, name, bio, profile_img_url, DOB } = req.body;
 

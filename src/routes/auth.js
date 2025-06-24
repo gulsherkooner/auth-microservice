@@ -332,7 +332,7 @@ router.get("/user/:user_id", async (req, res) => {
 });
 
 router.post("/change-password", async (req, res) => {
-  console.log("Reciveed");
+  console.log("Received");
   try {
     const userId = req.headers["x-user-id"];
     const { currentPassword, newPassword } = req.body;

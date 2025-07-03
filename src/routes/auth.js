@@ -117,10 +117,16 @@ router.get("/user", async (req, res) => {
     }
 
     const cacheKey = `user:${userId}`;
-    const cachedUser = await redis.get(cacheKey);
-
-    if (cachedUser) {
-      return res.status(200).json({ user: JSON.parse(cachedUser) });
+    
+    // Try to get from cache first
+    try {
+      const cachedUser = await redis.get(cacheKey);
+      if (cachedUser) {
+        return res.status(200).json({ user: JSON.parse(cachedUser) });
+      }
+    } catch (cacheError) {
+      console.warn("Redis cache read error:", cacheError.message);
+      // Continue without cache if Redis fails
     }
 
     const user = await User.findOne({
@@ -145,7 +151,14 @@ router.get("/user", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    // Try to cache the result, but don't fail if it doesn't work
+    try {
+      await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    } catch (cacheError) {
+      console.warn("Redis cache write error:", cacheError.message);
+      // Continue without caching if Redis fails
+    }
+
     res.status(200).json({ user });
   } catch (error) {
     console.error("Get user error:", error.message);
@@ -295,10 +308,16 @@ router.get("/user/:user_id", async (req, res) => {
     const { user_id } = req.params;
 
     const cacheKey = `user:${user_id}`;
-    const cachedUser = await redis.get(cacheKey);
-
-    if (cachedUser) {
-      return res.status(200).json({ user: JSON.parse(cachedUser) });
+    
+    // Try to get from cache first
+    try {
+      const cachedUser = await redis.get(cacheKey);
+      if (cachedUser) {
+        return res.status(200).json({ user: JSON.parse(cachedUser) });
+      }
+    } catch (cacheError) {
+      console.warn("Redis cache read error:", cacheError.message);
+      // Continue without cache if Redis fails
     }
 
     const user = await User.findOne({
@@ -323,7 +342,14 @@ router.get("/user/:user_id", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    // Try to cache the result, but don't fail if it doesn't work
+    try {
+      await redis.setex(cacheKey, 3600, JSON.stringify(user));
+    } catch (cacheError) {
+      console.warn("Redis cache write error:", cacheError.message);
+      // Continue without caching if Redis fails
+    }
+
     res.status(200).json({ user });
   } catch (error) {
     console.error("Get user by ID error:", error.message);

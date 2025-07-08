@@ -6,6 +6,7 @@ const redis = require("../config/redis");
 const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const getDbxToken = require("../utils/getDbxToken");
 const uploadToDropbox = require("../config/dropbox");
+const logger = require("../config/logger");
 
 const router = express.Router();
 
@@ -45,6 +46,8 @@ router.post("/register", async (req, res) => {
       following: 0,
       banner_img_url: "",
       is_verified: false,
+      content_creator: false,
+      dating: false,
     });
 
     const accessToken = generateAccessToken(newUser);
@@ -144,6 +147,8 @@ router.get("/user", async (req, res) => {
         "following",
         "banner_img_url",
         "is_verified",
+        "content_creator",
+        "dating",
       ],
     });
 
@@ -335,6 +340,8 @@ router.get("/user/:user_id", async (req, res) => {
         "following",
         "banner_img_url",
         "is_verified",
+        "content_creator",
+        "dating",
       ],
     });
 
@@ -389,6 +396,133 @@ router.post("/change-password", async (req, res) => {
   } catch (error) {
     console.error("Change password error:", error.message);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update User Flags (dating and content_creator)
+router.put("/user/flags", async (req, res) => {
+  logger.info("Starting PUT /user/flags request");
+  
+  // Check if request was aborted
+  if (req.aborted) {
+    logger.warn("Request was aborted before processing");
+    return;
+  }
+
+  try {
+    const userId = req.headers["x-user-id"];
+    logger.info(`Received user ID: ${userId}`);
+    
+    // Add periodic abort checks during long operations
+    if (req.aborted) {
+      logger.warn("Request aborted during user ID validation");
+      return;
+    }
+
+    if (!userId) {
+      logger.warn("No user ID provided in headers");
+      return res.status(401).json({ error: "User ID required" });
+    }
+
+    const { dating, content_creator } = req.body;
+    logger.info(`Request body - dating: ${dating}, content_creator: ${content_creator}`);
+
+    // Validate input - at least one field must be provided
+    if (dating === undefined && content_creator === undefined) {
+      logger.warn("No valid fields provided for update");
+      return res.status(400).json({ 
+        error: "At least one field (dating or content_creator) must be provided" 
+      });
+    }
+
+    // Validate boolean values
+    if (dating !== undefined && typeof dating !== 'boolean') {
+      logger.warn(`Invalid dating value type: ${typeof dating}, value: ${dating}`);
+      return res.status(400).json({ error: "Dating field must be a boolean value" });
+    }
+
+    if (content_creator !== undefined && typeof content_creator !== 'boolean') {
+      logger.warn(`Invalid content_creator value type: ${typeof content_creator}, value: ${content_creator}`);
+      return res.status(400).json({ error: "Content_creator field must be a boolean value" });
+    }
+
+    logger.info(`Searching for user with ID: ${userId}`);
+    const user = await User.findOne({ where: { user_id: userId } });
+    
+    if (!user) {
+      logger.warn(`User not found with ID: ${userId}`);
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    logger.info(`User found: ${user.username}, preparing update data`);
+
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date()
+    };
+
+    if (dating !== undefined) updateData.dating = dating;
+    if (content_creator !== undefined) updateData.content_creator = content_creator;
+
+    logger.info(`Update data prepared:`, updateData);
+
+    // Update user
+    await user.update(updateData);
+    logger.info("User flags updated successfully in database");
+
+    // Clear Redis cache
+    const cacheKey = `user:${userId}`;
+    try {
+      await redis.del(cacheKey);
+      logger.info(`Redis cache cleared for key: ${cacheKey}`);
+    } catch (cacheError) {
+      logger.warn(`Redis cache clear error: ${cacheError.message}`);
+    }
+
+    // Get updated user data
+    logger.info("Fetching updated user data");
+    const updatedUser = await User.findOne({
+      where: { user_id: userId },
+      attributes: [
+        "user_id",
+        "username",
+        "email", 
+        "name",
+        "bio",
+        "profile_img_url",
+        "created_at",
+        "updated_at",
+        "followers",
+        "following",
+        "banner_img_url",
+        "is_verified",
+        "content_creator",
+        "dating",
+      ],
+    });
+
+    logger.info(`Updated user data retrieved for: ${updatedUser.username}`);
+    logger.info(`Final flags - dating: ${updatedUser.dating}, content_creator: ${updatedUser.content_creator}`);
+
+    res.status(200).json({ 
+      message: "User flags updated successfully",
+      user: updatedUser 
+    });
+    
+    logger.info("PUT /user/flags request completed successfully");
+  } catch (error) {
+    // Check if error is due to request abortion
+    if (error.code === 'ECONNABORTED' || error.message.includes('aborted')) {
+      logger.warn("Request was aborted during processing");
+      return;
+    }
+    
+    logger.error(`Update user flags error: ${error.message}`);
+    logger.error(`Error stack: ${error.stack}`);
+    
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
 });
 

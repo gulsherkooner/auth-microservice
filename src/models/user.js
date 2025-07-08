@@ -64,6 +64,14 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  content_creator: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  dating: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 }, {
   tableName: 'users',
   timestamps: false,

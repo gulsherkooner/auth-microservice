@@ -7,6 +7,7 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const getDbxToken = require("../utils/getDbxToken");
 const uploadToDropbox = require("../config/dropbox");
 const logger = require("../config/logger");
+const { Op } = require("sequelize");
 
 const router = express.Router();
 
@@ -523,6 +524,76 @@ router.put("/user/flags", async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: "Internal server error" });
     }
+  }
+});
+
+// Search Users
+router.get("/search/users", async (req, res) => {
+  try {
+    // Add detailed logging
+    const {
+      q: searchString,
+      page = 1,
+      limit = 20,
+    } = req.query;
+    
+    if (!searchString || searchString.trim() === "") {
+      return res.status(400).json({ 
+        error: "Search query is required",
+        debug: {
+          received_q: searchString,
+          query_params: req.query
+        }
+      });
+    }
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const offset = (pageNum - 1) * limitNum;
+
+    const isSearchAll = searchString.trim() === "~";
+
+    let whereClause = {};
+    
+    if (!isSearchAll) {
+      whereClause = {
+        [Op.or]: [
+          { username: { [Op.iLike]: `%${searchString}%` } },
+          { name: { [Op.iLike]: `%${searchString}%` } },
+          { email: { [Op.iLike]: `%${searchString}%` } }
+        ]
+      };
+    }
+
+    const total = await User.count({ where: whereClause });
+    const users = await User.findAll({
+      where: whereClause,
+      attributes: [
+        "user_id",
+        "username", 
+        "name",
+        "bio",
+        "profile_img_url",
+        "followers",
+        "following",
+        "is_verified",
+        "created_at"
+      ],
+      order: [['followers', 'DESC']], // Order by popularity
+      limit: limitNum,
+      offset: offset
+    });
+
+    res.json({
+      users,
+      total,
+      totalPages: Math.ceil(total / limitNum),
+      page: pageNum,
+      limit: limitNum
+    });
+  } catch (error) {
+    logger.error(`User search error: ${error.message}`);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
